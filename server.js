@@ -1,8 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs').promises;
-const path = require('path');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -10,20 +7,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Path to emails storage
-const emailsPath = path.join(__dirname, 'data', 'emails.json');
-
-// Initialize emails.json if it doesn't exist
-async function initializeEmailsFile() {
-  try {
-    await fs.access(emailsPath);
-  } catch {
-    await fs.writeFile(emailsPath, JSON.stringify([]));
-  }
-}
-
-// In-memory emails array for production
-let emailsInMemory = [];
+// In-memory storage
+let emails = [];
 
 // Add email endpoint
 app.post('/api/waitlist', async (req, res) => {
@@ -34,21 +19,11 @@ app.post('/api/waitlist', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    // Use in-memory storage in production, file storage locally
-    if (process.env.NODE_ENV === 'production') {
-      if (emailsInMemory.includes(email)) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-      emailsInMemory.push(email);
-    } else {
-      const emails = JSON.parse(await fs.readFile(emailsPath, 'utf8'));
-      if (emails.includes(email)) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-      emails.push(email);
-      await fs.writeFile(emailsPath, JSON.stringify(emails, null, 2));
+    if (emails.includes(email)) {
+      return res.status(400).json({ error: 'Email already registered' });
     }
-    
+
+    emails.push(email);
     res.status(200).json({ message: 'Email added successfully' });
   } catch (error) {
     console.error('Error:', error);
@@ -56,9 +31,11 @@ app.post('/api/waitlist', async (req, res) => {
   }
 });
 
-// Start server
-initializeEmailsFile().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+// Optional: Get emails endpoint (for testing)
+app.get('/api/waitlist', (req, res) => {
+  res.json({ emails });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
